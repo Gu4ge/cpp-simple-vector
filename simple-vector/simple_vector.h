@@ -63,11 +63,8 @@ public:
     {
         if (&arr_ != &other.arr_)
         {
-            ArrayPtr<Type> temp(other.GetCapacity());
-            std::copy(other.begin(), other.end(), temp.Get());
-            arr_.swap(temp);
-            size_ = other.GetSize();
-            capacity_ = other.GetCapacity();
+            SimpleVector temp(other);
+            swap(temp);
         }
         return *this;
     }
@@ -76,14 +73,10 @@ public:
     // При нехватке места увеличивает вдвое вместимость вектора
     void PushBack(const Type &item)
     {
-        if (size_ + 1 > capacity_)
+        if (size_ == capacity_)
         {
             size_t new_capacity = std::max(size_ + 1, capacity_ * 2);
-            ArrayPtr<Type> temp(new_capacity);
-            std::fill(temp.Get(), temp.Get() + new_capacity, Type{});
-            std::copy(arr_.Get(), arr_.Get() + size_, temp.Get());
-            arr_.swap(temp);
-            capacity_ = new_capacity;
+            Reserve(new_capacity);
         }
         arr_[size_] = item;
         ++size_;
@@ -91,17 +84,12 @@ public:
 
     void PushBack(Type &&item)
     {
-        if (size_ + 1 > capacity_)
+        if (size_ == capacity_)
         {
             size_t new_capacity = std::max(size_ + 1, capacity_ * 2);
-            ArrayPtr<Type> temp(new_capacity);
-            // std::fill(temp.Get(), temp.Get() + new_capacity, Type{});
-            // std::copy(arr_.Get(), arr_.Get() + size_, temp.Get());
-            std::move(arr_.Get(), arr_.Get() + size_, temp.Get());
-            arr_.swap(temp);
-            capacity_ = new_capacity;
+            Reserve(new_capacity);
         }
-        arr_[size_] = std::move(item);
+        *(begin() + size_) = std::move(item);
         ++size_;
     }
 
@@ -113,22 +101,19 @@ public:
     {
 
         // Напишите тело самостоятельно
-        if (capacity_ == 0) // 1 2 (42) 3 4
+        if (capacity_ == 0)
         {
             capacity_ = 1;
         }
-        else if (size_ + 1 > capacity_)
+        else if (size_ == capacity_)
         {
             capacity_ *= 2;
         }
-        ArrayPtr<Type> tmp(capacity_);
+        Reserve(capacity_);
         auto it = pos - begin();
-        std::copy(begin(), begin() + it, tmp.Get());
-        *(tmp.Get() + it) = value;
-
-        std::copy(begin() + it, end(), tmp.Get() + it + 1);
+        std::copy_backward(begin() + it, end(), end() + 1);
+        *(begin() + it) = value;
         ++size_;
-        arr_.swap(tmp);
 
         return begin() + it;
     }
@@ -137,50 +122,38 @@ public:
     {
 
         // Напишите тело самостоятельно
-        if (capacity_ == 0) // 1 2 (42) 3 4
+        if (capacity_ == 0) 
         {
             capacity_ = 1;
         }
-        else if (size_ + 1 > capacity_)
+        else if (size_ == capacity_)
         {
             capacity_ *= 2;
         }
-        ArrayPtr<Type> tmp(capacity_);
+        Reserve(capacity_);
         auto it = pos - begin();
-        std::move(begin(), begin() + it, tmp.Get());
-        *(tmp.Get() + it) = std::move(value);
-
-        std::move(begin() + it, end(), tmp.Get() + it + 1);
+        std::move(begin() + it, end(), begin() + it + 1);
+        *(begin() + it) = std::move(value);
         ++size_;
-        arr_.swap(tmp);
 
         return begin() + it;
     }
 
     void PopBack() noexcept
     {
-        if (size_ != 0)
-        {
-            --size_;
-        }
+        assert(size_ != 0);
+        --size_;
     }
 
     // Удаляет элемент вектора в указанной позиции
     Iterator Erase(ConstIterator pos)
     {
+        assert(size_ != 0);
+        Iterator it = begin() + (pos - begin());
+        std::move(it + 1, end(), it);
+        --size_;
 
-        if (size_ != 0)
-        {
-            Iterator it = begin() + (pos - begin());
-
-            std::move(it + 1, end(), it);
-
-            --size_;
-
-            return it;
-        }
-
-        return end();
+        return it;
     }
 
     // Обменивает значение с другим вектором
@@ -196,10 +169,13 @@ public:
         if (new_capacity > capacity_)
         {
             ArrayPtr<Type> temp(new_capacity);
-            std::fill(temp.Get(), temp.Get() + new_capacity, Type{});
-            std::copy(arr_.Get(), arr_.Get() + size_, temp.Get());
+            for (auto i = temp.Get(); i != temp.Get() + new_capacity; i++)
+            {
+                *i = std::move(Type{});
+            }
+            std::move(arr_.Get(), arr_.Get() + size_, temp.Get());
             arr_.swap(temp);
-            capacity_ = new_capacity;
+            capacity_ = std::move(new_capacity);
         }
     }
 
@@ -321,8 +297,8 @@ inline bool operator==(const SimpleVector<Type> &lhs, const SimpleVector<Type> &
 template <typename Type>
 inline bool operator!=(const SimpleVector<Type> &lhs, const SimpleVector<Type> &rhs)
 {
-    return !std::equal(lhs.begin(), lhs.end(),
-                       rhs.begin());
+    return !(std::equal(lhs.begin(), lhs.end(),
+                        rhs.begin()));
 }
 
 template <typename Type>
@@ -335,13 +311,13 @@ inline bool operator<(const SimpleVector<Type> &lhs, const SimpleVector<Type> &r
 template <typename Type>
 inline bool operator<=(const SimpleVector<Type> &lhs, const SimpleVector<Type> &rhs)
 {
-    return (lhs < rhs || lhs == rhs);
+    return (lhs < rhs);
 }
 
 template <typename Type>
 inline bool operator>(const SimpleVector<Type> &lhs, const SimpleVector<Type> &rhs)
 {
-    return !(lhs <= rhs);
+    return !(lhs < rhs);
 }
 
 template <typename Type>
